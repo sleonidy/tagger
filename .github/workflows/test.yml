@@ -1,10 +1,7 @@
 name: 'build-test'
 on: # rebuild any PRs and main branch changes
-  pull_request:
-  push:
-    branches:
-      - main
-      - 'releases/*'
+  workflow_dispatch:
+
 
 jobs:
   build: # make sure build/ci work properly
@@ -19,6 +16,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: ./
+      - name: Tag repo
+        uses: ./
         with:
-          milliseconds: 1000
+          token: ${{ secrets.PAT }}
+          sha: ${{ github.sha }}
+          tag: Some tag
+          message: Some message
+
+
+

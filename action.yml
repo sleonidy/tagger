@@ -1,11 +1,32 @@
-name: 'Your name here'
-description: 'Provide a description here'
-author: 'Your name or organization here'
+name: 'Tagger'
+description: 'Create/Delete/Replace tag'
+author: 'Leonid Yanovsky'
 inputs:
-  milliseconds: # change this
+  token:
+    description: Token
+    default: ${{ github.token }}
+    required: false
+  tag:
+    description: Tag name to create
     required: true
-    description: 'input description here'
-    default: 'default value if applicable'
+  message:
+    description: Tag commit message. If not supplied tag is used instead
+    required: false
+  repo:
+    description: Repository to create tag at.
+    required: false
+  sha:
+    description: git sha commit to put tag on.
+    required: false
+    default: ''
+  replace_tag:
+    description: Tag to replace with ${{ inputs.tag }}
+    required: false
+    default: ''
+  delete:
+    default: 'true'
+    description: Delete tag with same name
+    required: true
 runs:
   using: 'node16'
   main: 'dist/index.js'
