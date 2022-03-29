@@ -21,7 +21,7 @@ jobs:
         with:
           token: ${{ secrets.PAT }}
           sha: ${{ github.sha }}
-          tag: Some tag
+          tag: Sometag
           message: Some message
 
 

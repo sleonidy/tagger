@@ -20,7 +20,7 @@ inputs:
     required: false
     default: ''
   replace_tag:
-    description: Tag to replace with ${{ inputs.tag }}
+    description: Tag to replace with {replace_tag}
     required: false
     default: ''
   delete:

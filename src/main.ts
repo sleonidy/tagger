@@ -5,6 +5,9 @@ async function run(): Promise<void> {
   try {
     core.startGroup('Prepare')
     const tag = core.getInput('tag')
+    if (tag.includes(' ')) {
+      throw new Error(`Invalid tag name ${tag}`)
+    }
     const token = core.getInput('token')
     const octokit = github.getOctokit(token)
     const repository = core.getInput('repository')
@@ -26,13 +29,17 @@ async function run(): Promise<void> {
     core.endGroup()
     core.startGroup('Fetch tag if exists')
     try {
-      const getTagResponse = await octokit.rest.git.getTag({
-        owner,
-        repo,
-        tag_sha: tag
-      })
-      foundTagSha = getTagResponse.data.sha
+      const getTagResponse = await octokit.request(
+        `GET /repos/{owner}/{repo}/git/ref/{ref}`,
+        {
+          owner,
+          repo,
+          ref: `tags/${tag}`
+        }
+      )
+      foundTagSha = getTagResponse.data.object.sha
     } catch (e) {
+      if (e instanceof Error) core.warning(e)
       core.info(`Didn't find tag ${tag}`)
     }
     core.endGroup()
@@ -40,11 +47,14 @@ async function run(): Promise<void> {
     if (shouldDeleteTag && foundTagSha !== '') {
       core.startGroup('Delete tag')
       core.info(`Deleting ${tag} with sha ${foundTagSha}`)
-      const deleteResponse = await octokit.rest.git.deleteRef({
-        owner,
-        repo,
-        ref: `refs/tags/${tag}`
-      })
+      const deleteResponse = await octokit.request(
+        'DELETE /repos/{owner}/{repo}/git/refs/{ref}',
+        {
+          owner,
+          repo,
+          ref: `tags/${tag}`
+        }
+      )
       core.debug(`Delete status ${deleteResponse.status}`)
       core.endGroup()
     }
@@ -52,17 +62,25 @@ async function run(): Promise<void> {
     const shaToCreateTag = foundTagSha || sha
     const replaceTag = core.getInput('replace_tag')
     const tagToCreate = replaceTag || tag
-    await octokit.rest.git.createTag({
+    if (message) {
+      await octokit.rest.git.createTag({
+        owner,
+        repo,
+        tag: tagToCreate,
+        message,
+        object: shaToCreateTag,
+        type: 'commit',
+        tagger: {
+          name: github.context.actor,
+          email: `${github.context.actor}@noreply.github.com`
+        }
+      })
+    }
+    await octokit.request('POST /repos/{owner}/{repo}/git/refs', {
       owner,
       repo,
-      tag: tagToCreate,
-      message,
-      object: shaToCreateTag,
-      type: 'commit',
-      tagger: {
-        name: github.context.actor,
-        email: `${github.context.actor}@noreply.github.com`
-      }
+      ref: `refs/tags/${tag}`,
+      sha: shaToCreateTag
     })
 
     core.notice(`Created ${tag} at ${shaToCreateTag}`)

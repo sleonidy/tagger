@@ -40,7 +40,11 @@ const github = __importStar(__nccwpck_require__(5438));
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
+            core.startGroup('Prepare');
             const tag = core.getInput('tag');
+            if (tag.includes(' ')) {
+                throw new Error(`Invalid tag name ${tag}`);
+            }
             const token = core.getInput('token');
             const octokit = github.getOctokit(token);
             const repository = core.getInput('repository');
@@ -56,40 +60,59 @@ function run() {
             const repo = splitedRepository[1];
             const shouldDeleteTag = core.getBooleanInput('delete');
             let foundTagSha = '';
+            core.endGroup();
+            core.startGroup('Fetch tag if exists');
             try {
-                const getTagResponse = yield octokit.rest.git.getTag({
+                const getTagResponse = yield octokit.request(`GET /repos/{owner}/{repo}/git/ref/{ref}`, {
                     owner,
                     repo,
-                    tag_sha: tag
+                    ref: `tags/${tag}`
                 });
-                foundTagSha = getTagResponse.data.sha;
+                foundTagSha = getTagResponse.data.object.sha;
             }
             catch (e) {
+                if (e instanceof Error)
+                    core.warning(e);
                 core.info(`Didn't find tag ${tag}`);
             }
+            core.endGroup();
             if (shouldDeleteTag && foundTagSha !== '') {
+                core.startGroup('Delete tag');
                 core.info(`Deleting ${tag} with sha ${foundTagSha}`);
-                const deleteResponse = yield octokit.rest.git.deleteRef({
+                const deleteResponse = yield octokit.request('DELETE /repos/{owner}/{repo}/git/refs/{ref}', {
                     owner,
                     repo,
-                    ref: `refs/tags/${tag}`
+                    ref: `tags/${tag}`
                 });
                 core.debug(`Delete status ${deleteResponse.status}`);
+                core.endGroup();
             }
+            core.startGroup('Create tag');
             const shaToCreateTag = foundTagSha || sha;
-            yield octokit.rest.git.createTag({
+            const replaceTag = core.getInput('replace_tag');
+            const tagToCreate = replaceTag || tag;
+            if (message) {
+                yield octokit.rest.git.createTag({
+                    owner,
+                    repo,
+                    tag: tagToCreate,
+                    message,
+                    object: shaToCreateTag,
+                    type: 'commit',
+                    tagger: {
+                        name: github.context.actor,
+                        email: `${github.context.actor}@noreply.github.com`
+                    }
+                });
+            }
+            yield octokit.request('POST /repos/{owner}/{repo}/git/refs', {
                 owner,
                 repo,
-                tag,
-                message,
-                object: shaToCreateTag,
-                type: 'commit',
-                tagger: {
-                    name: github.context.actor,
-                    email: `${github.context.actor}@noreply.github.com`
-                }
+                ref: `refs/tags/${tag}`,
+                sha: shaToCreateTag
             });
             core.notice(`Created ${tag} at ${shaToCreateTag}`);
+            core.endGroup();
         }
         catch (error) {
             if (error instanceof Error)
